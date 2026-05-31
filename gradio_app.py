@@ -1,7 +1,13 @@
 # -*- coding: utf-8 -*-
-"""Gradio Web UI for Research Copilot Agent.
+"""Gradio Web UI for Research Copilot Agent — leaner version (HF Space friendly).
 
-通过 HTTP 调用同机 FastAPI 服务（默认 http://127.0.0.1:8000），作为非技术演示门面。
+设计取舍（v2）：
+  - 删除所有 gr.Examples（HF 免费 CPU 上懒加载会卡死浏览器）
+  - 删除 Tab 5「文档管理」（gr.File 太重；上传请走 Swagger /docs）
+  - 删除 gr.Accordion（少嵌套层、少 WebSocket subscriptions）
+  - 示例改为 gr.Markdown 文字提示（用户复制粘贴即可）
+
+通过 HTTP 调用同机 FastAPI 服务（默认 http://127.0.0.1:8000）。
 
 启动:
   python gradio_app.py
@@ -77,18 +83,13 @@ def agent_chat(query: str, max_iters: int) -> tuple[str, str, str]:
 
 
 # ====================== Tab 2: RAG QA =================================
-def rag_qa(
-    query: str,
-    top_k: int,
-    mode: str,
-    use_rerank_choice: str,
-) -> tuple[str, str]:
+def rag_qa(query: str, top_k: int, mode: str, rerank_choice: str) -> tuple[str, str]:
     if not query or not query.strip():
         return "请输入问题", ""
     payload: dict[str, Any] = {"query": query, "top_k": int(top_k), "mode": mode}
-    if use_rerank_choice == "强制开启":
+    if rerank_choice == "强制开启":
         payload["use_rerank"] = True
-    elif use_rerank_choice == "强制关闭":
+    elif rerank_choice == "强制关闭":
         payload["use_rerank"] = False
 
     data = _post("/chat-rag", payload)
@@ -100,7 +101,7 @@ def rag_qa(
     usage = data.get("usage") or {}
 
     lines = [
-        f"### 检索到 {len(contexts)} 段  ·  model={data.get('model','?')}  "
+        f"### 检索 {len(contexts)} 段  ·  model={data.get('model','?')}  "
         f"·  tokens={usage.get('total_tokens','?')}  ·  trace=`{data.get('trace_id','')[:8]}...`\n"
     ]
     for i, c in enumerate(contexts, 1):
@@ -110,7 +111,9 @@ def rag_qa(
         src = c.get("source", "?")
         content = c.get("content", "")
         preview = content[:400] + ("..." if len(content) > 400 else "")
-        lines.append(f"**[{i}]** id=`{c.get('id','')[:8]}` score={score:.4f} src=`{src}`{rerank_tag}")
+        lines.append(
+            f"**[{i}]** id=`{c.get('id','')[:8]}` score={score:.4f} src=`{src}`{rerank_tag}"
+        )
         lines.append(f"```\n{preview}\n```")
     return answer, "\n".join(lines)
 
@@ -126,7 +129,7 @@ def _format_retrieval(label: str, data: dict) -> str:
     for i, it in enumerate(items, 1):
         score = it.get("score", 0.0)
         content = it.get("content", "").replace("\n", " ")
-        preview = content[:220] + ("..." if len(content) > 220 else "")
+        preview = content[:200] + ("..." if len(content) > 200 else "")
         out.append(f"**[{i}]** id=`{it.get('id','')[:8]}` score={score:.4f}")
         out.append(f"> {preview}\n")
     return "\n".join(out)
@@ -155,7 +158,11 @@ def retrieval_compare(query: str, top_k: int) -> tuple[str, str, str, str]:
 def web_qa(query: str, max_results: int) -> tuple[str, str]:
     if not query or not query.strip():
         return "请输入问题", ""
-    data = _post("/chat-web", {"query": query, "max_results": int(max_results)}, timeout=120.0)
+    data = _post(
+        "/chat-web",
+        {"query": query, "max_results": int(max_results)},
+        timeout=120.0,
+    )
     if "_error" in data:
         return f"❌ {data['_error']}", ""
 
@@ -164,7 +171,10 @@ def web_qa(query: str, max_results: int) -> tuple[str, str]:
     provider = data.get("provider", "?")
     usage = data.get("usage") or {}
 
-    lines = [f"### {len(contexts)} 个网页  ·  provider=`{provider}`  ·  tokens={usage.get('total_tokens','?')}\n"]
+    lines = [
+        f"### {len(contexts)} 个网页  ·  provider=`{provider}`  ·  "
+        f"tokens={usage.get('total_tokens','?')}\n"
+    ]
     for i, c in enumerate(contexts, 1):
         title = c.get("title", "")[:80]
         url = c.get("url", "")
@@ -176,49 +186,6 @@ def web_qa(query: str, max_results: int) -> tuple[str, str]:
     return answer, "\n".join(lines)
 
 
-# ====================== Tab 5: Documents =============================
-def upload_doc(file: Any) -> str:
-    if file is None:
-        return "请选择文件"
-    path = getattr(file, "name", file) if not isinstance(file, str) else file
-    try:
-        with open(path, "rb") as f:
-            files = {"file": (os.path.basename(path), f.read())}
-        r = httpx.post(f"{API}/documents/upload", files=files, timeout=180.0)
-        r.raise_for_status()
-        d = r.json()
-        return (
-            f"✅ **上传成功**\n\n"
-            f"- 文件名: `{d.get('filename','')}`\n"
-            f"- doc_id: `{d.get('document_id','')}`\n"
-            f"- 切块数: **{d.get('chunk_count', 0)}**\n"
-            f"- 状态: {d.get('status','')}\n\n"
-            f"_{d.get('message','')}_"
-        )
-    except httpx.HTTPStatusError as e:
-        return f"❌ HTTP {e.response.status_code}: {e.response.text[:300]}"
-    except Exception as e:
-        return f"❌ 上传失败: {type(e).__name__}: {e}"
-
-
-def list_docs() -> str:
-    try:
-        r = httpx.get(f"{API}/documents", timeout=30.0)
-        r.raise_for_status()
-        docs = r.json() or []
-    except Exception as e:
-        return f"❌ {type(e).__name__}: {e}"
-    if not docs:
-        return "_知识库为空，请先上传文档_"
-    lines = [f"### 共 {len(docs)} 个文档\n"]
-    for d in docs:
-        name = d.get("filename", "")
-        did = (d.get("id", "") or "")[:8]
-        ts = d.get("created_at", "") or ""
-        lines.append(f"- **{name}**  ·  id=`{did}`  ·  {ts}")
-    return "\n".join(lines)
-
-
 # ====================== UI ==========================================
 INTRO = """
 # 🤖 Research Copilot — 多工具研究助手 Agent
@@ -226,49 +193,51 @@ INTRO = """
 **三工具自主路由**（知识库 RAG · 联网搜索 · 数学计算）  ·
 **混合检索 + 重排**（向量 + BM25 + RRF + bge-reranker）  ·
 **真实评测**：30 条评测集，hybrid+rerank Hit@1 = **0.867**，比 BM25 **+23.8%**
+
+> 💡 **使用说明**：上方 4 个 Tab 演示核心能力；文档上传请用 [Swagger API 文档](/docs)（HF 已自动加载 6 篇种子文档）。
 """
 
-EXAMPLES_AGENT = [
-    ["RRF 倒数排名融合的常数 k 取多少？为什么是这个值？", 4],
-    ["2025 年 LangGraph 最新版本号是多少？", 4],
-    ["输入 1500 + 输出 500 token 按 input $5/M output $15/M 算多少美元？", 4],
-]
+EXAMPLES_AGENT_TXT = """
+**🎯 试试这些问题**（复制下方一行到上面文本框）：
+- `RRF 倒数排名融合的常数 k 取多少？为什么是这个值？` ← 走 rag_search
+- `2025 年 LangGraph 最新版本号是多少？` ← 走 web_search
+- `输入 1500 + 输出 500 token 按 input $5/M output $15/M 算多少美元？` ← 走 calculator
+"""
 
-EXAMPLES_RAG = [
-    ["为什么混合检索比单路向量更稳？", 3, "hybrid", "强制开启"],
-    ["三态熔断器的恢复窗口设置成多少秒？", 3, "hybrid", "默认（跟全局）"],
-    ["为什么 LLM-as-judge 加在 bge 之后反而下降？", 3, "hybrid", "强制开启"],
-]
+EXAMPLES_RAG_TXT = """
+**🎯 试试这些问题**：
+- `为什么混合检索比单路向量更稳？`
+- `三态熔断器的恢复窗口设置成多少秒？`
+- `为什么 LLM-as-judge 加在 bge 之后反而下降？`
+"""
 
-EXAMPLES_CMP = [
-    ["RRF 排名融合", 3],
-    ["Cross-Encoder 重排", 3],
-    ["熔断器三态", 3],
-]
+EXAMPLES_CMP_TXT = """
+**🎯 短查询效果最直观**：`RRF 排名融合` / `Cross-Encoder 重排` / `熔断器三态`
+"""
+
+EXAMPLES_WEB_TXT = """
+**🎯 试试**：`2025 LangGraph 最新版本` / `OpenAI 最新模型定价`
+"""
 
 
-with gr.Blocks(title="Research Copilot") as demo:
+with gr.Blocks(title="Research Copilot", theme=gr.themes.Soft()) as demo:
     gr.Markdown(INTRO)
 
     with gr.Tab("🤖 Agent（自主路由）"):
         gr.Markdown(
             "Agent 自主选择工具：**知识库题用 RAG · 时效题用搜索 · 数学题用计算器**。"
-            "下方展开看完整调用轨迹。"
         )
+        gr.Markdown(EXAMPLES_AGENT_TXT)
         with gr.Row():
             with gr.Column(scale=3):
                 agent_q = gr.Textbox(label="问题", lines=2, placeholder="问任何问题…")
             with gr.Column(scale=1):
-                agent_iters = gr.Slider(1, 10, value=4, step=1, label="最大循环次数")
+                agent_iters = gr.Slider(1, 8, value=4, step=1, label="最大循环次数")
         agent_btn = gr.Button("提交", variant="primary")
         agent_meta = gr.Markdown()
         agent_answer = gr.Markdown()
-        with gr.Accordion("🔍 工具调用轨迹", open=True):
-            agent_trace = gr.Markdown()
-        gr.Examples(
-            EXAMPLES_AGENT, [agent_q, agent_iters],
-            label="示例（点击填入）", cache_examples=False,
-        )
+        gr.Markdown("### 🔍 工具调用轨迹")
+        agent_trace = gr.Markdown()
         agent_btn.click(
             agent_chat,
             [agent_q, agent_iters],
@@ -277,26 +246,24 @@ with gr.Blocks(title="Research Copilot") as demo:
 
     with gr.Tab("📚 RAG 问答（带引用）"):
         gr.Markdown("检索内部知识库 → 注入上下文 → LLM 生成 → 解析 [n] 引用")
+        gr.Markdown(EXAMPLES_RAG_TXT)
         with gr.Row():
             with gr.Column(scale=3):
                 rag_q = gr.Textbox(label="问题", lines=2)
             with gr.Column(scale=1):
-                rag_top_k = gr.Slider(1, 10, value=3, step=1, label="top_k")
+                rag_top_k = gr.Slider(1, 8, value=3, step=1, label="top_k")
                 rag_mode = gr.Dropdown(
                     ["hybrid", "vector", "keyword"], value="hybrid", label="检索模式"
                 )
                 rag_rerank = gr.Dropdown(
                     ["默认（跟全局）", "强制开启", "强制关闭"],
-                    value="默认（跟全局）", label="Cross-Encoder 重排",
+                    value="默认（跟全局）",
+                    label="Cross-Encoder 重排",
                 )
         rag_btn = gr.Button("提交", variant="primary")
         rag_answer = gr.Markdown()
-        with gr.Accordion("📖 检索片段", open=True):
-            rag_ctx = gr.Markdown()
-        gr.Examples(
-            EXAMPLES_RAG, [rag_q, rag_top_k, rag_mode, rag_rerank],
-            label="示例", cache_examples=False,
-        )
+        gr.Markdown("### 📖 检索片段")
+        rag_ctx = gr.Markdown()
         rag_btn.click(
             rag_qa,
             [rag_q, rag_top_k, rag_mode, rag_rerank],
@@ -305,12 +272,13 @@ with gr.Blocks(title="Research Copilot") as demo:
 
     with gr.Tab("⚖️ 检索对比（4 模式并排）"):
         gr.Markdown(
-            "**这是项目核心卖点**：同一查询用 4 种策略并排跑，"
+            "**项目核心卖点**：同一查询用 4 种策略并排跑，"
             "直观看出 hybrid+rerank 比单路 BM25 / vector 强多少。"
         )
+        gr.Markdown(EXAMPLES_CMP_TXT)
         with gr.Row():
             cmp_q = gr.Textbox(label="问题", lines=2, scale=3)
-            cmp_top_k = gr.Slider(1, 10, value=3, step=1, label="top_k", scale=1)
+            cmp_top_k = gr.Slider(1, 6, value=3, step=1, label="top_k", scale=1)
         cmp_btn = gr.Button("并排运行", variant="primary")
         with gr.Row():
             cmp_a = gr.Markdown()
@@ -318,45 +286,26 @@ with gr.Blocks(title="Research Copilot") as demo:
         with gr.Row():
             cmp_c = gr.Markdown()
             cmp_d = gr.Markdown()
-        gr.Examples(
-            EXAMPLES_CMP, [cmp_q, cmp_top_k],
-            label="示例", cache_examples=False,
-        )
         cmp_btn.click(
             retrieval_compare, [cmp_q, cmp_top_k], [cmp_a, cmp_b, cmp_c, cmp_d]
         )
 
     with gr.Tab("🌐 联网搜索 + RAG"):
         gr.Markdown("Tavily（如配 key）/ DDGS 搜索 → LLM 基于摘要作答")
+        gr.Markdown(EXAMPLES_WEB_TXT)
         with gr.Row():
             web_q = gr.Textbox(label="问题", lines=2, scale=3)
-            web_n = gr.Slider(1, 10, value=3, step=1, label="结果数", scale=1)
+            web_n = gr.Slider(1, 6, value=3, step=1, label="结果数", scale=1)
         web_btn = gr.Button("联网搜索 + RAG", variant="primary")
         web_answer = gr.Markdown()
-        with gr.Accordion("🔗 网页摘要", open=True):
-            web_ctx = gr.Markdown()
+        gr.Markdown("### 🔗 网页摘要")
+        web_ctx = gr.Markdown()
         web_btn.click(web_qa, [web_q, web_n], [web_answer, web_ctx])
-
-    with gr.Tab("📁 文档管理"):
-        gr.Markdown("上传 .pdf / .md / .tex / .txt，自动切块 + 向量化 + 入库")
-        with gr.Row():
-            with gr.Column():
-                upload_f = gr.File(
-                    label="选择文件",
-                    file_types=[".pdf", ".md", ".markdown", ".tex", ".txt"],
-                )
-                upload_btn = gr.Button("上传", variant="primary")
-                upload_out = gr.Markdown()
-            with gr.Column():
-                list_btn = gr.Button("查看已上传文档")
-                list_out = gr.Markdown()
-        upload_btn.click(upload_doc, [upload_f], [upload_out])
-        list_btn.click(list_docs, None, [list_out])
 
     gr.Markdown(
         f"---\n后端: `{BACKEND}`  ·  "
         f"[Swagger API 文档]({BACKEND}/docs)  ·  "
-        f"开源仓库: [GitHub](#)"
+        f"开源仓库: [GitHub](https://github.com/nice-uotd/research-copilot)"
     )
 
 
@@ -366,5 +315,4 @@ if __name__ == "__main__":
         server_port=int(os.environ.get("GRADIO_PORT", "7860")),
         share=False,
         show_error=True,
-        theme=gr.themes.Soft(),
     )
