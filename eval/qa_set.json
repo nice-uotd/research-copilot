@@ -1,0 +1,88 @@
+{
+  "version": "v1-public",
+  "domain": "research_copilot_self_referential",
+  "description": "公开版评测集：8 条问题对应 seed_docs/ 中的项目自指型文档，演示与 CI smoke test 用。生产真实评测在私有领域知识库进行（30 条，详见 README）。",
+  "fields": {
+    "id": "唯一编号",
+    "lang": "zh | en",
+    "difficulty": "easy | medium | hard",
+    "question": "送入 /retrieve 接口的查询",
+    "expected_substrings": "命中判定：返回 chunk 的 content 包含其中任一子串（小写比较）即视为命中",
+    "expected_doc_filenames": "答案应来自哪个文件（仅参考，评测脚本不强制）",
+    "notes": "出题意图"
+  },
+  "items": [
+    {
+      "id": "P001",
+      "lang": "zh",
+      "difficulty": "easy",
+      "question": "项目用什么向量库？为什么不用 Milvus？",
+      "expected_substrings": ["chroma", "适配层", "伪装成 pymilvus"],
+      "expected_doc_filenames": ["01-about-this-project.md", "05-production-engineering.md"],
+      "notes": "字面定位 + 取舍解释"
+    },
+    {
+      "id": "P002",
+      "lang": "zh",
+      "difficulty": "easy",
+      "question": "RRF 倒数排名融合的常数 k 取多少？",
+      "expected_substrings": ["k=60", "经验常数", "60"],
+      "expected_doc_filenames": ["02-hybrid-retrieval.md"],
+      "notes": "精确数字"
+    },
+    {
+      "id": "P003",
+      "lang": "zh",
+      "difficulty": "medium",
+      "question": "为什么混合检索比单路向量更稳？",
+      "expected_substrings": ["互补", "罕见专有名词", "BM25 在这两点上恰好相反", "向量相似度可能失效"],
+      "expected_doc_filenames": ["02-hybrid-retrieval.md"],
+      "notes": "改写题：原文用'互补'，问题用'更稳'"
+    },
+    {
+      "id": "P004",
+      "lang": "zh",
+      "difficulty": "medium",
+      "question": "项目的 calculator 工具如何防止 LLM 触发任意代码执行？",
+      "expected_substrings": ["ast.parse", "白名单", "BinOp", "禁止任意函数调用"],
+      "expected_doc_filenames": ["03-function-calling-agent.md"],
+      "notes": "安全设计题"
+    },
+    {
+      "id": "P005",
+      "lang": "zh",
+      "difficulty": "medium",
+      "question": "三态熔断器的恢复窗口设置成多少秒？",
+      "expected_substrings": ["60 秒", "60", "冷却"],
+      "expected_doc_filenames": ["05-production-engineering.md"],
+      "notes": "数字 + 状态机理解"
+    },
+    {
+      "id": "P006",
+      "lang": "en",
+      "difficulty": "medium",
+      "question": "Why does the bi-encoder approach trade quality for speed compared to Cross-Encoder?",
+      "expected_substrings": ["bi-encoder", "Cross-Encoder", "approximation", "近似", "拼成一对"],
+      "expected_doc_filenames": ["04-cross-encoder-rerank.md"],
+      "notes": "英文术语题；同样字符串在中文文档里也命中"
+    },
+    {
+      "id": "P007",
+      "lang": "zh",
+      "difficulty": "hard",
+      "question": "LLM-as-judge 加在 bge 之后反而让结果变差，到底是哪些类型的题被搞砸了？",
+      "expected_substrings": ["互相否决", "字面命中段", "全面综述段", "不同子集"],
+      "expected_doc_filenames": ["04-cross-encoder-rerank.md", "06-evaluation-methodology.md"],
+      "notes": "反直觉故事题，跨文档"
+    },
+    {
+      "id": "P008",
+      "lang": "zh",
+      "difficulty": "hard",
+      "question": "为什么第一次评测所有模式 Hit@1 都是 1.000？这暴露了什么实验设计问题？",
+      "expected_substrings": ["RERANK_ENABLED", "默认", "隐式走重排", "差异化被抹掉", "实验设计本身"],
+      "expected_doc_filenames": ["06-evaluation-methodology.md"],
+      "notes": "评测口径陷阱"
+    }
+  ]
+}

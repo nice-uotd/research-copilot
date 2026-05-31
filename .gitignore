@@ -1,0 +1,57 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.Python
+build/
+dist/
+*.egg
+
+# Virtual env
+.venv/
+venv/
+env/
+
+# Secrets
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# Data & uploads (rebuilt at startup from seed_docs/)
+data/
+uploads/
+*.db
+*.sqlite
+*.sqlite3
+
+# Eval cache (results regenerated locally)
+eval/results/
+
+# Private writeups (not for public)
+RESUME_DRAFT.md
+BAD_CASES.md
+HANDOFF.md
+INTERVIEW_PREP.md
+
+# IDE
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# Logs
+*.log
+logs/
+
+# Notebooks
+.ipynb_checkpoints/
+
+# HF Spaces local cache
+.cache/
+.gradio/
+
+# OS
+Thumbs.db
