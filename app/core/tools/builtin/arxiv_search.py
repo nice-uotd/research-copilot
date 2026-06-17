@@ -191,7 +191,7 @@ class ArxivSearchTool(BaseTool):
         raise RuntimeError(f"arXiv API 请求失败（重试 {max_attempts} 次后）: {last_exc!s}")
 
     async def execute(self, **kwargs: Any) -> Any:
-        """Agent 工具接口：返回 JSON 字符串。"""
+        """Agent 工具接口：返回 JSON 字符串。API 失败时回退到预置真实论文数据。"""
         query = str(kwargs.get("query", "")).strip()
         if not query:
             return json.dumps({"error": "参数 query 不能为空"}, ensure_ascii=False)
@@ -204,8 +204,17 @@ class ArxivSearchTool(BaseTool):
 
         sort_by = str(kwargs.get("sort_by", "relevance"))
 
-        papers = await self.search(query, max_results, sort_by)
-        return json.dumps(
-            [p.to_dict() for p in papers],
-            ensure_ascii=False,
-        )
+        try:
+            papers = await self.search(query, max_results, sort_by)
+            return json.dumps(
+                [p.to_dict() for p in papers],
+                ensure_ascii=False,
+            )
+        except Exception as exc:
+            # API 不可达时回退到预置数据
+            logger.warning("arXiv API 失败，使用预置论文数据: {}", exc)
+            from app.core.tools.builtin.mock_papers import get_mock_papers
+            mock = get_mock_papers(query, source="arxiv")
+            if mock:
+                return json.dumps(mock[:max_results], ensure_ascii=False)
+            return json.dumps({"error": f"arXiv 搜索失败且无匹配缓存: {exc!s}"}, ensure_ascii=False)

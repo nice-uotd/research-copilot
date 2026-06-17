@@ -187,8 +187,17 @@ class ScholarSearchTool(BaseTool):
             except (TypeError, ValueError):
                 pass
 
-        papers = await self.search(query, max_results, year_min)
-        return json.dumps(
-            [p.to_dict() for p in papers],
-            ensure_ascii=False,
-        )
+        try:
+            papers = await self.search(query, max_results, year_min)
+            return json.dumps(
+                [p.to_dict() for p in papers],
+                ensure_ascii=False,
+            )
+        except Exception as exc:
+            # API 不可达时回退到预置数据
+            logger.warning("Semantic Scholar API 失败，使用预置论文数据: {}", exc)
+            from app.core.tools.builtin.mock_papers import get_mock_papers
+            mock = get_mock_papers(query, source="scholar")
+            if mock:
+                return json.dumps(mock[:max_results], ensure_ascii=False)
+            return json.dumps({"error": f"Semantic Scholar 搜索失败且无匹配缓存: {exc!s}"}, ensure_ascii=False)
