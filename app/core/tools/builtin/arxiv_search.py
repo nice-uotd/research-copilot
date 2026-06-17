@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import asyncio
+import asyncio
 import json
 import re
 import xml.etree.ElementTree as ET
@@ -158,24 +159,36 @@ class ArxivSearchTool(BaseTool):
     async def search(
         self, query: str, max_results: int = 10, sort_by: str = "relevance"
     ) -> list[ArxivPaper]:
-        """执行搜索，返回结构化论文列表。"""
+        """执行搜索，返回结构化论文列表（含指数退避重试）。"""
         if not query.strip():
             raise ValueError("query 不能为空")
         max_results = max(1, min(max_results, 20))
         if sort_by not in ("relevance", "lastUpdatedDate"):
             sort_by = "relevance"
 
-        try:
-            return await self._fetch_arxiv(query, max_results, sort_by)
-        except httpx.HTTPStatusError as exc:
-            logger.warning("arXiv API HTTP 错误: {}", exc)
-            raise RuntimeError(f"arXiv API 请求失败: HTTP {exc.response.status_code}") from exc
-        except ET.ParseError as exc:
-            logger.warning("arXiv XML 解析失败: {}", exc)
-            raise RuntimeError("arXiv 返回数据解析失败") from exc
-        except Exception as exc:
-            logger.exception("arXiv 搜索异常: {}", exc)
-            raise RuntimeError(f"arXiv 搜索失败: {exc!s}") from exc
+        max_attempts = 3
+        last_exc: Exception | None = None
+
+        for attempt in range(max_attempts):
+            try:
+                return await self._fetch_arxiv(query, max_results, sort_by)
+            except httpx.HTTPStatusError as exc:
+                last_exc = exc
+                if exc.response.status_code == 429 and attempt < max_attempts - 1:
+                    wait = 5 * (attempt + 1)  # 5s, 10s
+                    logger.info("arXiv 429 限流，等待 {}s 后重试 ({}/{})", wait, attempt + 1, max_attempts)
+                    await asyncio.sleep(wait)
+                    continue
+                logger.warning("arXiv API HTTP 错误: {}", exc)
+                raise RuntimeError(f"arXiv API 请求失败: HTTP {exc.response.status_code}") from exc
+            except ET.ParseError as exc:
+                logger.warning("arXiv XML 解析失败: {}", exc)
+                raise RuntimeError("arXiv 返回数据解析失败") from exc
+            except Exception as exc:
+                logger.exception("arXiv 搜索异常: {}", exc)
+                raise RuntimeError(f"arXiv 搜索失败: {exc!s}") from exc
+
+        raise RuntimeError(f"arXiv API 请求失败（重试 {max_attempts} 次后）: {last_exc!s}")
 
     async def execute(self, **kwargs: Any) -> Any:
         """Agent 工具接口：返回 JSON 字符串。"""

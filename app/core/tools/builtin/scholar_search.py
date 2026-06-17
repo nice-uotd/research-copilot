@@ -91,8 +91,8 @@ class ScholarSearchTool(BaseTool):
 
         headers = {"Accept": "application/json"}
 
-        # 简单重试：遇到 429 等待后重试 1 次
-        max_attempts = 2
+        # 指数退避重试：遇到 429 等待后重试
+        max_attempts = 3
         last_exc: Exception | None = None
 
         async with httpx.AsyncClient(timeout=self._timeout) as client:
@@ -105,8 +105,9 @@ class ScholarSearchTool(BaseTool):
                     last_exc = exc
                     if exc.response.status_code == 429 and attempt < max_attempts - 1:
                         import asyncio
-                        logger.info("Semantic Scholar 429，等待 3s 后重试...")
-                        await asyncio.sleep(3)
+                        wait = 5 * (attempt + 1)  # 5s, 10s
+                        logger.info("Semantic Scholar 429，等待 {}s 后重试 ({}/{})", wait, attempt + 1, max_attempts)
+                        await asyncio.sleep(wait)
                         continue
                     raise
             else:
