@@ -1,0 +1,286 @@
+{
+  "version": "v2-full",
+  "domain": "research_copilot_self_referential",
+  "description": "30 条评测集：覆盖 6 篇 seed_docs，难度分布 easy(9)/medium(15)/hard(6)，设计目标是让 hybrid > vector > keyword 拉开区分度",
+  "fields": {
+    "id": "唯一编号",
+    "lang": "zh | en",
+    "difficulty": "easy | medium | hard",
+    "question": "送入 /retrieve 接口的查询",
+    "expected_substrings": "命中判定：返回 chunk 的 content 包含其中任一子串即视为命中",
+    "expected_doc_filenames": "答案应来自哪个文件",
+    "notes": "出题意图"
+  },
+  "items": [
+    {
+      "id": "E001",
+      "lang": "zh",
+      "difficulty": "easy",
+      "question": "项目用什么向量库？",
+      "expected_substrings": ["chroma", "Chroma"],
+      "expected_doc_filenames": ["01-about-this-project.md"],
+      "notes": "字面定位"
+    },
+    {
+      "id": "E002",
+      "lang": "zh",
+      "difficulty": "easy",
+      "question": "RRF 的常数 k 取多少？",
+      "expected_substrings": ["k=60", "k + rank", "60"],
+      "expected_doc_filenames": ["02-hybrid-retrieval.md"],
+      "notes": "精确数字"
+    },
+    {
+      "id": "E003",
+      "lang": "zh",
+      "difficulty": "easy",
+      "question": "BM25 的 k1 参数是多少？",
+      "expected_substrings": ["k1=1.5", "1.5"],
+      "expected_doc_filenames": ["02-hybrid-retrieval.md"],
+      "notes": "精确数字"
+    },
+    {
+      "id": "E004",
+      "lang": "zh",
+      "difficulty": "easy",
+      "question": "熔断器 Open 状态的冷却时间是多少秒？",
+      "expected_substrings": ["60 秒", "60"],
+      "expected_doc_filenames": ["05-production-engineering.md"],
+      "notes": "精确数字"
+    },
+    {
+      "id": "E005",
+      "lang": "zh",
+      "difficulty": "easy",
+      "question": "embedding 模型用的是哪个？维度多少？",
+      "expected_substrings": ["text-embedding-v3", "1024"],
+      "expected_doc_filenames": ["02-hybrid-retrieval.md"],
+      "notes": "字面定位"
+    },
+    {
+      "id": "E006",
+      "lang": "zh",
+      "difficulty": "easy",
+      "question": "Agent 最多循环几步？",
+      "expected_substrings": ["max_iters", "5"],
+      "expected_doc_filenames": ["03-function-calling-agent.md"],
+      "notes": "精确数字"
+    },
+    {
+      "id": "E007",
+      "lang": "en",
+      "difficulty": "easy",
+      "question": "What reranker model does this project use?",
+      "expected_substrings": ["bge-reranker-base", "BAAI"],
+      "expected_doc_filenames": ["04-cross-encoder-rerank.md"],
+      "notes": "英文字面"
+    },
+    {
+      "id": "E008",
+      "lang": "zh",
+      "difficulty": "easy",
+      "question": "项目有哪三个工具？",
+      "expected_substrings": ["rag_search", "web_search", "calculator"],
+      "expected_doc_filenames": ["03-function-calling-agent.md"],
+      "notes": "字面列举"
+    },
+    {
+      "id": "E009",
+      "lang": "zh",
+      "difficulty": "easy",
+      "question": "SSE 流式输出用什么 HTTP 格式？",
+      "expected_substrings": ["text/event-stream", "Server-Sent Events"],
+      "expected_doc_filenames": ["05-production-engineering.md"],
+      "notes": "字面定位"
+    },
+    {
+      "id": "M001",
+      "lang": "zh",
+      "difficulty": "medium",
+      "question": "为什么混合检索比纯向量检索更稳定？",
+      "expected_substrings": ["互补", "罕见专有名词", "BM25"],
+      "expected_doc_filenames": ["02-hybrid-retrieval.md"],
+      "notes": "同义改写：'更稳定'→原文'互补'"
+    },
+    {
+      "id": "M002",
+      "lang": "zh",
+      "difficulty": "medium",
+      "question": "为什么用排名融合而不是分数加权平均？",
+      "expected_substrings": ["量纲不匹配", "归一化", "鲁棒"],
+      "expected_doc_filenames": ["02-hybrid-retrieval.md"],
+      "notes": "同义改写：'分数加权平均'→原文'加权求和'"
+    },
+    {
+      "id": "M003",
+      "lang": "zh",
+      "difficulty": "medium",
+      "question": "Function Calling 相比文本 ReAct 有什么优势？",
+      "expected_substrings": ["结构化输出", "鲁棒性", "JSON 解析"],
+      "expected_doc_filenames": ["03-function-calling-agent.md"],
+      "notes": "对比题"
+    },
+    {
+      "id": "M004",
+      "lang": "zh",
+      "difficulty": "medium",
+      "question": "calculator 工具怎么防止代码注入攻击？",
+      "expected_substrings": ["ast.parse", "白名单", "BinOp"],
+      "expected_doc_filenames": ["03-function-calling-agent.md"],
+      "notes": "安全设计题"
+    },
+    {
+      "id": "M005",
+      "lang": "en",
+      "difficulty": "medium",
+      "question": "How does Cross-Encoder differ from bi-encoder in terms of accuracy?",
+      "expected_substrings": ["拼成一对", "标量相关性分数", "慢但准"],
+      "expected_doc_filenames": ["04-cross-encoder-rerank.md"],
+      "notes": "英文改写"
+    },
+    {
+      "id": "M006",
+      "lang": "zh",
+      "difficulty": "medium",
+      "question": "熔断器进入 Half-Open 后怎么判断是否恢复？",
+      "expected_substrings": ["试探", "3 次", "全成功则回 Closed"],
+      "expected_doc_filenames": ["05-production-engineering.md"],
+      "notes": "状态机细节"
+    },
+    {
+      "id": "M007",
+      "lang": "zh",
+      "difficulty": "medium",
+      "question": "模型路由器的加权随机公式是什么？",
+      "expected_substrings": ["random()", "1 / max(weight", "权重越大越容易排前"],
+      "expected_doc_filenames": ["05-production-engineering.md"],
+      "notes": "精确公式"
+    },
+    {
+      "id": "M008",
+      "lang": "zh",
+      "difficulty": "medium",
+      "question": "trace_id 有什么实际价值？",
+      "expected_substrings": ["故障排查", "Bad case 复盘", "MTTR"],
+      "expected_doc_filenames": ["05-production-engineering.md"],
+      "notes": "功能理解"
+    },
+    {
+      "id": "M009",
+      "lang": "zh",
+      "difficulty": "medium",
+      "question": "评测集的难度分布建议是怎样的？",
+      "expected_substrings": ["30%", "50%", "20%"],
+      "expected_doc_filenames": ["06-evaluation-methodology.md"],
+      "notes": "比例数字"
+    },
+    {
+      "id": "M010",
+      "lang": "zh",
+      "difficulty": "medium",
+      "question": "为什么第一次评测所有模式得分都一样？",
+      "expected_substrings": ["RERANK_ENABLED", "隐式走重排", "差异化被抹掉"],
+      "expected_doc_filenames": ["06-evaluation-methodology.md"],
+      "notes": "口径陷阱"
+    },
+    {
+      "id": "M011",
+      "lang": "zh",
+      "difficulty": "medium",
+      "question": "重启服务后 BM25 索引怎么恢复？",
+      "expected_substrings": ["SQLite", "重建", "rebuild_bm25_from_db"],
+      "expected_doc_filenames": ["02-hybrid-retrieval.md", "05-production-engineering.md"],
+      "notes": "持久化设计"
+    },
+    {
+      "id": "M012",
+      "lang": "zh",
+      "difficulty": "medium",
+      "question": "为什么不用 PostgreSQL 和 Milvus？",
+      "expected_substrings": ["单机原型", "零依赖", "适配层"],
+      "expected_doc_filenames": ["05-production-engineering.md"],
+      "notes": "技术选型题"
+    },
+    {
+      "id": "M013",
+      "lang": "zh",
+      "difficulty": "medium",
+      "question": "工具的 description 怎么写才能让 LLM 正确选择？",
+      "expected_substrings": ["术语锚点", "典型场景", "隐含边界"],
+      "expected_doc_filenames": ["03-function-calling-agent.md"],
+      "notes": "prompt设计"
+    },
+    {
+      "id": "M014",
+      "lang": "en",
+      "difficulty": "medium",
+      "question": "What is the relationship between Function Calling and RAG?",
+      "expected_substrings": ["组合关系", "rag_search 工具", "不是互斥"],
+      "expected_doc_filenames": ["03-function-calling-agent.md"],
+      "notes": "英文概念题"
+    },
+    {
+      "id": "M015",
+      "lang": "zh",
+      "difficulty": "medium",
+      "question": "一次完整 RAG 问答大约消耗多少 token？",
+      "expected_substrings": ["2000"],
+      "expected_doc_filenames": ["05-production-engineering.md"],
+      "notes": "数字定位"
+    },
+    {
+      "id": "H001",
+      "lang": "zh",
+      "difficulty": "hard",
+      "question": "LLM-judge 加在 bge 重排之后为什么反而让检索变差了？",
+      "expected_substrings": ["互相否决", "不同子集"],
+      "expected_doc_filenames": ["06-evaluation-methodology.md", "04-cross-encoder-rerank.md"],
+      "notes": "反直觉跨文档"
+    },
+    {
+      "id": "H002",
+      "lang": "zh",
+      "difficulty": "hard",
+      "question": "评测驱动决策的具体例子是什么？demo 好看但实测下降了多少？",
+      "expected_substrings": ["13", "demo 漂亮不代表", "per-request"],
+      "expected_doc_filenames": ["06-evaluation-methodology.md"],
+      "notes": "数字+结论多跳"
+    },
+    {
+      "id": "H003",
+      "lang": "zh",
+      "difficulty": "hard",
+      "question": "如果向量检索对专有名词不稳，BM25 对同义词不行，那系统怎么同时解决这两个问题？",
+      "expected_substrings": ["混合检索", "互补", "RRF"],
+      "expected_doc_filenames": ["02-hybrid-retrieval.md"],
+      "notes": "综合推理题：需要把两个弱点和解决方案联系起来"
+    },
+    {
+      "id": "H004",
+      "lang": "zh",
+      "difficulty": "hard",
+      "question": "熔断器和重试机制应该怎么配合？Open 状态下还应该重试吗？",
+      "expected_substrings": ["互补关系", "Open 状态下不再重试", "切换备用模型"],
+      "expected_doc_filenames": ["05-production-engineering.md"],
+      "notes": "设计理解：需理解两者协作关系"
+    },
+    {
+      "id": "H005",
+      "lang": "zh",
+      "difficulty": "hard",
+      "question": "Near-duplicate 段落和长片段稀释分别导致什么检索问题？对应什么改进方案？",
+      "expected_substrings": ["同源近重复", "关键词被均摊", "父子检索", "SemanticChunker"],
+      "expected_doc_filenames": ["06-evaluation-methodology.md"],
+      "notes": "多跳：问题→原因→方案"
+    },
+    {
+      "id": "H006",
+      "lang": "en",
+      "difficulty": "hard",
+      "question": "Why does the project choose Hit@K with K=5 instead of K=1 or K=10?",
+      "expected_substrings": ["区分度", "饱和", "噪声大"],
+      "expected_doc_filenames": ["06-evaluation-methodology.md"],
+      "notes": "英文+设计决策推理"
+    }
+  ]
+}

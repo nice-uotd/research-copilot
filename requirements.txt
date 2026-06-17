@@ -1,0 +1,37 @@
+# Core web stack
+fastapi>=0.115.0
+uvicorn>=0.34.0
+pydantic>=2.10.0
+pydantic-settings>=2.7.0
+python-multipart>=0.0.18
+
+# LLM 客户端 + token 计数
+openai>=1.60.0
+tiktoken>=0.8.0
+
+# 数据库（SQLite 异步）
+sqlalchemy>=2.0.0
+aiosqlite>=0.21.0
+
+# 向量库
+chromadb>=1.5.0
+
+# 文档解析
+pypdf>=5.0.0
+
+# 重排（Cross-Encoder + 多语言；首次启用拉 ~280MB 模型）
+sentence-transformers>=3.3.0
+
+# Web 搜索（Tavily 优先 + DDGS 回退）
+ddgs>=9.14.0
+tavily-python>=0.7.0
+
+# UI
+gradio>=6.0.0
+
+# 工具
+httpx>=0.28.0
+loguru>=0.7.0
+tenacity>=9.0.0
+python-dotenv>=1.0.0
+numpy>=2.0.0
