@@ -1,6 +1,3 @@
-# -*- coding: utf-8 -*-
-"""多路检索：向量（Milvus）、BM25 关键词、混合 + RRF 融合。"""
-
 from __future__ import annotations
 
 import asyncio
@@ -14,18 +11,14 @@ from loguru import logger
 from app.models.enums import RetrievalMode
 from app.models.schemas import RetrievalResult
 
-
 @runtime_checkable
 class EmbeddingProtocol(Protocol):
-    """与 LangChain Embeddings 兼容的嵌入接口。"""
 
     def embed_query(self, text: str) -> list[float]:
         ...
 
-
 @runtime_checkable
 class MilvusSearchable(Protocol):
-    """支持向量检索的 Milvus Collection 或兼容封装。"""
 
     def search(
         self,
@@ -38,14 +31,11 @@ class MilvusSearchable(Protocol):
     ) -> Any:
         ...
 
-
 def _tokenize(text: str) -> list[str]:
-    """简单中英文分词：按非字母数字 Unicode 切分。"""
+
     return [t.lower() for t in re.findall(r"[\w\u4e00-\u9fff]+", text) if t]
 
-
 class _BM25Index:
-    """内存 BM25（Okapi）索引，用于关键词检索。"""
 
     def __init__(self, k1: float = 1.5, b: float = 0.75) -> None:
         self.k1 = k1
@@ -60,7 +50,7 @@ class _BM25Index:
         self._idf: dict[str, float] = {}
 
     def clear(self) -> None:
-        """清空索引。"""
+
         self._doc_ids.clear()
         self._documents.clear()
         self._doc_freqs.clear()
@@ -71,7 +61,7 @@ class _BM25Index:
         self._idf.clear()
 
     def add_document(self, doc_id: str, text: str) -> None:
-        """添加文档并更新统计量。"""
+
         tokens = _tokenize(text)
         tf: defaultdict[str, int] = defaultdict(int)
         for t in tokens:
@@ -85,14 +75,14 @@ class _BM25Index:
         self._N += 1
         dl_sum = sum(self._doc_lens)
         self._avgdl = dl_sum / self._N if self._N else 0.0
-        # 重新计算 IDF（对当前语料）
+
         self._idf = {}
         for term, df in self._df.items():
-            # 平滑 IDF
+
             self._idf[term] = math.log(1.0 + (self._N - df + 0.5) / (df + 0.5))
 
     def search(self, query: str, top_k: int) -> list[tuple[str, float]]:
-        """返回 (doc_id, bm25_score) 降序。"""
+
         if self._N == 0:
             return []
         q_terms = _tokenize(query)
@@ -115,36 +105,32 @@ class _BM25Index:
         ranked = sorted(scores.items(), key=lambda x: x[1], reverse=True)[:top_k]
         return ranked
 
-
 class MultiRetriever:
-    """多路检索引擎：支持向量检索 + BM25 关键词检索 + 混合检索（RRF）。"""
 
-    # Milvus 常见字段名，若集合不同可通过类属性或实例赋值覆盖（与 Schema 一致）
     anns_field: str = "embedding"
     text_field: str = "text"
     id_field: str = "id"
 
-    # 向量检索参数
     metric_param: dict[str, Any] = {"metric_type": "L2", "params": {"nprobe": 16}}
 
     def __init__(self, milvus_client: Any, embedding_model: Any) -> None:
-        """
-        :param milvus_client: pymilvus Collection 或实现 ``search`` 的兼容对象
-        :param embedding_model: 含 ``embed_query(str) -> list[float]`` 的嵌入模型
-        """
+\
+\
+\
+
         self._milvus = milvus_client
         self._embed = embedding_model
         self._bm25 = _BM25Index()
-        # doc_id -> 全文，用于 BM25 结果组装
+
         self._id_to_text: dict[str, str] = {}
         self._rrf_k: int = 60
 
     def register_keyword_documents(self, id_to_text: dict[str, str]) -> None:
-        """
-        注册用于 BM25 的文档（通常与向量库中的分块 ID 一致）。
+\
+\
+\
+\
 
-        :param id_to_text: 文档 ID 到文本的映射
-        """
         self._bm25.clear()
         self._id_to_text.clear()
         for did, text in id_to_text.items():
@@ -153,7 +139,7 @@ class MultiRetriever:
         logger.info("BM25 索引已更新，文档数: {}", len(id_to_text))
 
     def add_keyword_documents(self, id_to_text: dict[str, str]) -> None:
-        """增量追加 BM25 文档，跳过重复 ID。"""
+
         added = 0
         for did, text in id_to_text.items():
             if did in self._id_to_text:
@@ -167,7 +153,7 @@ class MultiRetriever:
     async def retrieve(
         self, query: str, top_k: int = 10, mode: str = "hybrid"
     ) -> list[RetrievalResult]:
-        """执行检索。"""
+
         mode_norm = mode.lower().strip()
         try:
             rm = RetrievalMode(mode_norm)
@@ -182,7 +168,7 @@ class MultiRetriever:
         return await self.hybrid_search(query, top_k)
 
     async def vector_search(self, query: str, top_k: int) -> list[RetrievalResult]:
-        """向量语义检索。"""
+
         if not isinstance(self._embed, EmbeddingProtocol):
             raise TypeError("embedding_model 需实现 embed_query 方法")
 
@@ -208,13 +194,13 @@ class MultiRetriever:
             raise RuntimeError(f"向量检索失败: {e}") from e
 
     def _search_milvus(self, vector: list[float], top_k: int) -> list[RetrievalResult]:
-        """同步 Milvus 查询并封装为 RetrievalResult。"""
+
         coll = self._milvus
         if not isinstance(coll, MilvusSearchable):
             raise TypeError("milvus_client 需实现 search 方法")
 
         output_fields = [self.text_field, self.id_field]
-        # 部分集合主键字段名为 id，自动兼容
+
         raw = coll.search(
             data=[vector],
             anns_field=self.anns_field,
@@ -228,12 +214,12 @@ class MultiRetriever:
             entity = getattr(hit, "entity", None) or {}
             if hasattr(hit, "entity"):
                 try:
-                    entity = hit.entity.to_dict()  # type: ignore[assignment]
+                    entity = hit.entity.to_dict()                            
                 except Exception:
                     entity = getattr(hit, "entity", {})
-            # 距离 / 分数：distance 越小越好（L2）；IP 越大越好
+
             score = float(getattr(hit, "distance", 0.0) or 0.0)
-            # 统一为「越大越好」：对 L2 做简单反转（仅用于展示）
+
             text = entity.get(self.text_field) or entity.get("text") or ""
             rid = str(entity.get(self.id_field) or entity.get("id") or hit.id)
             results.append(
@@ -248,7 +234,7 @@ class MultiRetriever:
         return results
 
     async def keyword_search(self, query: str, top_k: int) -> list[RetrievalResult]:
-        """BM25 关键词检索（需先 register_keyword_documents）。"""
+
         def _run() -> list[RetrievalResult]:
             ranked = self._bm25.search(query, top_k)
             out: list[RetrievalResult] = []
@@ -276,7 +262,7 @@ class MultiRetriever:
         lists: list[list[RetrievalResult]],
         top_k: int,
     ) -> list[RetrievalResult]:
-        """倒数排名融合（RRF），按 id 合并多路结果。"""
+
         scores: dict[str, float] = {}
         id_best: dict[str, RetrievalResult] = {}
         k = self._rrf_k
@@ -297,7 +283,7 @@ class MultiRetriever:
         return merged
 
     async def hybrid_search(self, query: str, top_k: int) -> list[RetrievalResult]:
-        """混合检索：并行向量 + BM25，RRF 融合。"""
+
         vec_task = self.vector_search(query, top_k)
         kw_task = self.keyword_search(query, top_k)
         vec_res, kw_res = await asyncio.gather(vec_task, kw_task, return_exceptions=True)

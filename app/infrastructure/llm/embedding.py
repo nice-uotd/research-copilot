@@ -1,6 +1,3 @@
-# -*- coding: utf-8 -*-
-"""Embedding 客户端：OpenAI 兼容协议（默认对接阿里百炼 text-embedding-v3）。"""
-
 from __future__ import annotations
 
 import asyncio
@@ -9,9 +6,7 @@ from typing import Any
 from loguru import logger
 from openai import AsyncOpenAI
 
-
 class EmbeddingClient:
-    """同步 + 异步嵌入接口；与 LangChain Embeddings 鸭子兼容（embed_query / embed_documents）。"""
 
     def __init__(
         self,
@@ -34,7 +29,7 @@ class EmbeddingClient:
         return self._dim
 
     async def aembed(self, texts: list[str]) -> list[list[float]]:
-        """异步批量嵌入。"""
+
         out: list[list[float]] = []
         for i in range(0, len(texts), self._batch_size):
             batch = texts[i : i + self._batch_size]
@@ -47,9 +42,9 @@ class EmbeddingClient:
         return out
 
     def embed_query(self, text: str) -> list[float]:
-        """同步单条嵌入（兼容 LangChain Embeddings 接口）。"""
+
         return asyncio.run(self.aembed([text]))[0]
 
     def embed_documents(self, texts: list[str]) -> list[list[float]]:
-        """同步批量嵌入。"""
+
         return asyncio.run(self.aembed(texts))

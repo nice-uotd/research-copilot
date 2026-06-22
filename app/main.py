@@ -1,6 +1,3 @@
-# -*- coding: utf-8 -*-
-"""FastAPI 应用入口：生命周期内初始化数据库引擎、SQLite 表与 RAG 服务。"""
-
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -16,7 +13,6 @@ from app.config import get_settings
 from app.core.rag.service import init_rag_service
 from app.infrastructure.database.models import Base
 from app.infrastructure.database.session import configure_session, init_engine
-
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -40,7 +36,6 @@ async def lifespan(app: FastAPI):
     await engine.dispose()
     logger.info("关闭 {}", settings.app_name)
 
-
 def create_app() -> FastAPI:
     settings = get_settings()
     application = FastAPI(
@@ -60,6 +55,5 @@ def create_app() -> FastAPI:
         return RedirectResponse(url="/docs")
 
     return application
-
 
 app = create_app()

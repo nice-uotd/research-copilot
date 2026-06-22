@@ -1,6 +1,3 @@
-# -*- coding: utf-8 -*-
-"""RAG 检索 + 生成 API。"""
-
 from __future__ import annotations
 
 import uuid
@@ -20,7 +17,6 @@ router = APIRouter(tags=["rag"])
 
 _tracer = Tracer()
 
-
 class RetrieveRequest(BaseModel):
     query: str = Field(min_length=1, description="检索问题")
     top_k: int = Field(default=5, ge=1, le=50)
@@ -34,14 +30,12 @@ class RetrieveRequest(BaseModel):
         description="True 启用 LLM-as-judge 终排，False 关闭，None 跟随全局",
     )
 
-
 class RetrieveResponse(BaseModel):
     query: str
     mode: str
     reranked: bool
     llm_judged: bool
     results: list[RetrievalResult]
-
 
 class ChatRAGRequest(BaseModel):
     query: str = Field(min_length=1, description="用户问题")
@@ -51,7 +45,6 @@ class ChatRAGRequest(BaseModel):
     use_rerank: bool | None = Field(default=None, description="是否启用 bge 重排")
     use_llm_judge: bool | None = Field(default=None, description="是否启用 LLM-as-judge 终排")
 
-
 class ChatRAGResponse(BaseModel):
     answer: str
     citations: list[Citation]
@@ -60,14 +53,9 @@ class ChatRAGResponse(BaseModel):
     trace_id: str
     usage: dict[str, Any] | None = None
 
-
 _SYSTEM_PROMPT = (
-    "你是严谨的研究助手。回答必须基于「检索上下文」中的事实；"
-    "若上下文不足以回答，明确说「上下文未涉及」，不要编造。"
-    "在引用具体论点时使用 [1]、[2] 等编号，编号与下方上下文一一对应。"
-    "回答用中文，专业术语保留原文。"
-)
 
+)
 
 def _build_router() -> ModelRouter:
     settings = get_settings()
@@ -85,13 +73,11 @@ def _build_router() -> ModelRouter:
         ]
     )
 
-
 def _format_contexts(contexts: list[RetrievalResult]) -> str:
     lines = []
     for i, c in enumerate(contexts, start=1):
         lines.append(f"[{i}] (id={c.id[:8]} score={c.score:.4f})\n{c.content}")
     return "\n\n".join(lines) if lines else "（无检索结果）"
-
 
 def _extract_citations(answer: str, contexts: list[RetrievalResult]) -> list[Citation]:
     import re
@@ -108,10 +94,9 @@ def _extract_citations(answer: str, contexts: list[RetrievalResult]) -> list[Cit
         citations.append(Citation(index=idx, result_id=r.id, snippet=snippet))
     return citations
 
-
 @router.post("/retrieve", response_model=RetrieveResponse)
 async def retrieve(req: RetrieveRequest) -> RetrieveResponse:
-    """对当前向量库与 BM25 索引执行检索，仅返回片段。"""
+
     rag = get_rag_service()
     try:
         results = await rag.retrieve(
@@ -134,10 +119,9 @@ async def retrieve(req: RetrieveRequest) -> RetrieveResponse:
         results=results,
     )
 
-
 @router.post("/chat-rag", response_model=ChatRAGResponse)
 async def chat_rag(req: ChatRAGRequest) -> ChatRAGResponse:
-    """RAG 问答：检索 → 注入上下文 → 让 LLM 基于上下文作答。"""
+
     trace_id = str(uuid.uuid4())
     span = _tracer.start_trace(trace_id, "chat_rag")
 
@@ -156,9 +140,7 @@ async def chat_rag(req: ChatRAGRequest) -> ChatRAGResponse:
         raise HTTPException(status_code=500, detail=f"检索失败: {exc!s}") from exc
 
     user_prompt = (
-        f"## 检索上下文\n{_format_contexts(contexts)}\n\n"
-        f"## 用户问题\n{req.query}\n\n"
-        "请基于上下文作答，必要时使用 [n] 引用。"
+
     )
 
     router_llm = _build_router()

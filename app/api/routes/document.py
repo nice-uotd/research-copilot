@@ -1,6 +1,3 @@
-# -*- coding: utf-8 -*-
-"""文档管理 API：上传与列表。"""
-
 from __future__ import annotations
 
 import asyncio
@@ -20,13 +17,12 @@ from app.models.schemas import DocumentInfo, DocumentUploadResponse
 
 router = APIRouter(tags=["documents"])
 
-
 @router.post("/documents/upload", response_model=DocumentUploadResponse)
 async def upload_document(
     file: UploadFile = File(..., description="上传的文件"),
     session: AsyncSession = Depends(get_async_session),
 ) -> DocumentUploadResponse:
-    """上传文档并执行 ETL 分块后写入数据库。"""
+
     upload_root = Path("uploads")
     upload_root.mkdir(parents=True, exist_ok=True)
 
@@ -99,12 +95,11 @@ async def upload_document(
         message="上传、分块、向量化完成",
     )
 
-
 @router.get("/documents", response_model=list[DocumentInfo])
 async def list_documents(
     session: AsyncSession = Depends(get_async_session),
 ) -> list[DocumentInfo]:
-    """列出已入库文档元数据。"""
+
     try:
         result = await session.execute(select(Document).order_by(Document.created_at.desc()))
         rows = result.scalars().all()

@@ -1,34 +1,12 @@
-# -*- coding: utf-8 -*-
-"""Gradio Web UI for Research Copilot Agent — leaner version (HF Space friendly).
-
-设计取舍（v2）：
-  - 删除所有 gr.Examples（HF 免费 CPU 上懒加载会卡死浏览器）
-  - 删除 Tab 5「文档管理」（gr.File 太重；上传请走 Swagger /docs）
-  - 删除 gr.Accordion（少嵌套层、少 WebSocket subscriptions）
-  - 示例改为 gr.Markdown 文字提示（用户复制粘贴即可）
-
-通过 HTTP 调用同机 FastAPI 服务（默认 http://127.0.0.1:8000）。
-
-启动:
-  python gradio_app.py
-  BACKEND_URL=http://your-backend python gradio_app.py
-"""
-
 from __future__ import annotations
-
 import json
 import os
 from typing import Any
-
 import gradio as gr
 import httpx
-
 BACKEND = os.environ.get("BACKEND_URL", "http://127.0.0.1:8000").rstrip("/")
 API = f"{BACKEND}/api/v1"
-
-
 def _post(path: str, payload: dict, timeout: float = 180.0) -> dict:
-    """统一 POST，错误以 {"_error": ...} 形式返回。"""
     try:
         r = httpx.post(f"{API}{path}", json=payload, timeout=timeout)
         r.raise_for_status()
@@ -40,29 +18,23 @@ def _post(path: str, payload: dict, timeout: float = 180.0) -> dict:
         return {"_error": f"连接 {BACKEND} 失败，请确认 FastAPI 服务已启动"}
     except Exception as e:
         return {"_error": f"{type(e).__name__}: {e}"}
-
-
-# ====================== Tab 1: Agent =================================
 def agent_chat(query: str, max_iters: int) -> tuple[str, str, str]:
     if not query or not query.strip():
         return "请输入问题", "", ""
     data = _post("/chat-agent", {"query": query, "max_iters": int(max_iters)})
     if "_error" in data:
         return f"❌ {data['_error']}", "", ""
-
     answer = data.get("answer", "(空)")
     steps = data.get("steps", [])
     iters = data.get("iterations", 0)
     tokens = data.get("total_tokens", 0)
     finished = data.get("finished", False)
     trace_id = data.get("trace_id", "")
-
     meta = (
         f"**状态**: {'✅ 完成' if finished else '⚠️ 未完成'}  ·  "
         f"**迭代**: {iters}  ·  **Token**: {tokens}  ·  "
         f"**Trace**: `{trace_id[:8]}...`"
     )
-
     if not steps:
         trace_md = "_本次未调用任何工具，模型直接作答_"
     else:
@@ -78,11 +50,7 @@ def agent_chat(query: str, max_iters: int) -> tuple[str, str, str]:
                 lines.append(f"- ⚠️ 错误: `{s['error']}`")
             lines.append("")
         trace_md = "\n".join(lines)
-
     return answer, trace_md, meta
-
-
-# ====================== Tab 2: RAG QA =================================
 def rag_qa(query: str, top_k: int, mode: str, rerank_choice: str) -> tuple[str, str]:
     if not query or not query.strip():
         return "请输入问题", ""
@@ -91,15 +59,12 @@ def rag_qa(query: str, top_k: int, mode: str, rerank_choice: str) -> tuple[str, 
         payload["use_rerank"] = True
     elif rerank_choice == "强制关闭":
         payload["use_rerank"] = False
-
     data = _post("/chat-rag", payload)
     if "_error" in data:
         return f"❌ {data['_error']}", ""
-
     answer = data.get("answer", "(空)")
     contexts = data.get("contexts", [])
     usage = data.get("usage") or {}
-
     lines = [
         f"### 检索 {len(contexts)} 段  ·  model={data.get('model','?')}  "
         f"·  tokens={usage.get('total_tokens','?')}  ·  trace=`{data.get('trace_id','')[:8]}...`\n"
@@ -116,9 +81,6 @@ def rag_qa(query: str, top_k: int, mode: str, rerank_choice: str) -> tuple[str, 
         )
         lines.append(f"```\n{preview}\n```")
     return answer, "\n".join(lines)
-
-
-# ====================== Tab 3: Retrieval Compare ========================
 def _format_retrieval(label: str, data: dict) -> str:
     if "_error" in data:
         return f"### {label}\n\n❌ {data['_error']}"
@@ -133,13 +95,10 @@ def _format_retrieval(label: str, data: dict) -> str:
         out.append(f"**[{i}]** id=`{it.get('id','')[:8]}` score={score:.4f}")
         out.append(f"> {preview}\n")
     return "\n".join(out)
-
-
 def retrieval_compare(query: str, top_k: int) -> tuple[str, str, str, str]:
     if not query or not query.strip():
         empty = "请输入问题"
         return empty, empty, empty, empty
-
     configs = [
         ("hybrid + rerank", {"mode": "hybrid", "use_rerank": True}),
         ("hybrid (无重排)", {"mode": "hybrid", "use_rerank": False}),
@@ -152,9 +111,6 @@ def retrieval_compare(query: str, top_k: int) -> tuple[str, str, str, str]:
         data = _post("/retrieve", payload)
         out.append(_format_retrieval(label, data))
     return out[0], out[1], out[2], out[3]
-
-
-# ====================== Tab 4: Web Search ============================
 def web_qa(query: str, max_results: int) -> tuple[str, str]:
     if not query or not query.strip():
         return "请输入问题", ""
@@ -165,12 +121,10 @@ def web_qa(query: str, max_results: int) -> tuple[str, str]:
     )
     if "_error" in data:
         return f"❌ {data['_error']}", ""
-
     answer = data.get("answer", "(空)")
     contexts = data.get("contexts", [])
     provider = data.get("provider", "?")
     usage = data.get("usage") or {}
-
     lines = [
         f"### {len(contexts)} 个网页  ·  provider=`{provider}`  ·  "
         f"tokens={usage.get('total_tokens','?')}\n"
@@ -184,20 +138,14 @@ def web_qa(query: str, max_results: int) -> tuple[str, str]:
         lines.append(f"🔗 {url}")
         lines.append(f"> {content}...\n")
     return answer, "\n".join(lines)
-
-
-# ====================== UI ==========================================
 INTRO = """
 # 🤖 Research Copilot — 多工具研究助手 Agent
-
 **五工具自主路由**（知识库 RAG · 联网搜索 · 数学计算 · arXiv 论文检索 · Semantic Scholar）  ·
 **混合检索 + 重排**（向量 + BM25 + RRF + bge-reranker）  ·
 **Related Work 自动生成**（双源检索 → 筛选 → 综述段落）  ·
 **真实评测**：30 条评测集，hybrid+rerank Hit@1 = **0.867**，比 BM25 **+23.8%**
-
 > 💡 **使用说明**：上方 5 个 Tab 演示核心能力；文档上传请用 [Swagger API 文档](/docs)（HF 已自动加载 6 篇种子文档）。
 """
-
 EXAMPLES_AGENT_TXT = """
 **🎯 试试这些问题**（复制下方一行到上面文本框）：
 - `RRF 倒数排名融合的常数 k 取多少？为什么是这个值？` ← 走 rag_search
@@ -206,22 +154,18 @@ EXAMPLES_AGENT_TXT = """
 - `Search arXiv for recent papers on retrieval augmented generation` ← 走 arxiv_search
 - `Find highly cited papers on multi-agent systems` ← 走 scholar_search
 """
-
 EXAMPLES_RAG_TXT = """
 **🎯 试试这些问题**：
 - `为什么混合检索比单路向量更稳？`
 - `三态熔断器的恢复窗口设置成多少秒？`
 - `为什么 LLM-as-judge 加在 bge 之后反而下降？`
 """
-
 EXAMPLES_CMP_TXT = """
 **🎯 短查询效果最直观**：`RRF 排名融合` / `Cross-Encoder 重排` / `熔断器三态`
 """
-
 EXAMPLES_WEB_TXT = """
 **🎯 试试**：`2025 LangGraph 最新版本` / `OpenAI 最新模型定价`
 """
-
 EXAMPLES_RW_TXT = """
 **🎯 试试这些研究主题**（英文效果最佳）：
 - `Retrieval-Augmented Generation for knowledge-intensive tasks`
@@ -229,20 +173,16 @@ EXAMPLES_RW_TXT = """
 - `Active learning for knowledge graph alignment`
 - `Circuit breaker patterns in LLM serving systems`
 """
-
-
-# ====================== Tab 5: Related Work Generator ================
 def related_work_gen(topic: str, max_papers: int) -> tuple[str, str, str]:
     if not topic or not topic.strip():
         return "请输入研究主题", "", ""
     data = _post(
         "/chat-related-work",
         {"topic": topic, "max_papers": int(max_papers)},
-        timeout=300.0,  # Related Work 生成需要多轮工具调用，给足超时
+        timeout=300.0,                                
     )
     if "_error" in data:
         return f"❌ {data['_error']}", "", ""
-
     answer = data.get("related_work", "(空)")
     steps = data.get("steps", [])
     iters = data.get("iterations", 0)
@@ -250,14 +190,12 @@ def related_work_gen(topic: str, max_papers: int) -> tuple[str, str, str]:
     finished = data.get("finished", False)
     trace_id = data.get("trace_id", "")
     papers_found = data.get("papers_found", 0)
-
     meta = (
         f"**状态**: {'✅ 完成' if finished else '⚠️ 未完成'}  ·  "
         f"**迭代**: {iters}  ·  **Token**: {tokens}  ·  "
         f"**检索论文数**: {papers_found}  ·  "
         f"**Trace**: `{trace_id[:8]}...`"
     )
-
     if not steps:
         trace_md = "_未调用工具_"
     else:
@@ -266,7 +204,6 @@ def related_work_gen(topic: str, max_papers: int) -> tuple[str, str, str]:
             args_str = json.dumps(s.get("tool_args", {}), ensure_ascii=False)
             lines.append(f"**Step {s['step']}** — `{s['tool_name']}`")
             lines.append(f"- 参数: `{args_str}`")
-            # 对论文搜索结果，提取标题列表
             result = s.get("tool_result", "")
             if s["tool_name"] in ("arxiv_search", "scholar_search"):
                 try:
@@ -292,13 +229,9 @@ def related_work_gen(topic: str, max_papers: int) -> tuple[str, str, str]:
                 lines.append(f"- ⚠️ 错误: `{s['error']}`")
             lines.append("")
         trace_md = "\n".join(lines)
-
     return answer, trace_md, meta
-
-
 with gr.Blocks(title="Research Copilot", theme=gr.themes.Soft()) as demo:
     gr.Markdown(INTRO)
-
     with gr.Tab("🤖 Agent（自主路由）"):
         gr.Markdown(
             "Agent 自主选择工具：**知识库题用 RAG · 时效题用搜索 · 数学题用计算器**。"
@@ -319,7 +252,6 @@ with gr.Blocks(title="Research Copilot", theme=gr.themes.Soft()) as demo:
             [agent_q, agent_iters],
             [agent_answer, agent_trace, agent_meta],
         )
-
     with gr.Tab("📚 RAG 问答（带引用）"):
         gr.Markdown("检索内部知识库 → 注入上下文 → LLM 生成 → 解析 [n] 引用")
         gr.Markdown(EXAMPLES_RAG_TXT)
@@ -345,7 +277,6 @@ with gr.Blocks(title="Research Copilot", theme=gr.themes.Soft()) as demo:
             [rag_q, rag_top_k, rag_mode, rag_rerank],
             [rag_answer, rag_ctx],
         )
-
     with gr.Tab("⚖️ 检索对比（4 模式并排）"):
         gr.Markdown(
             "**项目核心卖点**：同一查询用 4 种策略并排跑，"
@@ -365,7 +296,6 @@ with gr.Blocks(title="Research Copilot", theme=gr.themes.Soft()) as demo:
         cmp_btn.click(
             retrieval_compare, [cmp_q, cmp_top_k], [cmp_a, cmp_b, cmp_c, cmp_d]
         )
-
     with gr.Tab("🌐 联网搜索 + RAG"):
         gr.Markdown("Tavily（如配 key）/ DDGS 搜索 → LLM 基于摘要作答")
         gr.Markdown(EXAMPLES_WEB_TXT)
@@ -377,7 +307,6 @@ with gr.Blocks(title="Research Copilot", theme=gr.themes.Soft()) as demo:
         gr.Markdown("### 🔗 网页摘要")
         web_ctx = gr.Markdown()
         web_btn.click(web_qa, [web_q, web_n], [web_answer, web_ctx])
-
     with gr.Tab("📝 Related Work 生成"):
         gr.Markdown(
             "**核心功能**：输入研究主题 → Agent 自动检索 arXiv + Semantic Scholar "
@@ -407,14 +336,11 @@ with gr.Blocks(title="Research Copilot", theme=gr.themes.Soft()) as demo:
             [rw_topic, rw_papers],
             [rw_answer, rw_trace, rw_meta],
         )
-
     gr.Markdown(
         f"---\n后端: `{BACKEND}`  ·  "
         f"[Swagger API 文档]({BACKEND}/docs)  ·  "
         f"开源仓库: [GitHub](https://github.com/nice-uotd/research-copilot)"
     )
-
-
 if __name__ == "__main__":
     demo.launch(
         server_name="0.0.0.0",

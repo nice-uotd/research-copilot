@@ -1,29 +1,15 @@
-# -*- coding: utf-8 -*-
-"""SQLAlchemy ORM 模型：会话、消息、文档与追踪日志。"""
-
 from __future__ import annotations
-
 import uuid
 from datetime import datetime
 from typing import Any
-
 from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, JSON
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
-
-
 def _uuid() -> str:
     return str(uuid.uuid4())
-
-
 class Base(DeclarativeBase):
-    """声明式基类。"""
-
-
+    pass
 class Conversation(Base):
-    """会话表：一次用户对话线程。"""
-
     __tablename__ = "conversations"
-
     id: Mapped[str] = mapped_column(
         String(64),
         primary_key=True,
@@ -41,18 +27,12 @@ class Conversation(Base):
         default=datetime.utcnow,
         onupdate=datetime.utcnow,
     )
-
     messages: Mapped[list["Message"]] = relationship(
         back_populates="conversation",
         cascade="all, delete-orphan",
     )
-
-
 class Message(Base):
-    """消息表：会话中的单条消息。"""
-
     __tablename__ = "messages"
-
     id: Mapped[str] = mapped_column(
         String(64),
         primary_key=True,
@@ -71,15 +51,9 @@ class Message(Base):
         DateTime(timezone=True),
         default=datetime.utcnow,
     )
-
     conversation: Mapped["Conversation"] = relationship(back_populates="messages")
-
-
 class Document(Base):
-    """文档表：上传的原始文档元数据。"""
-
     __tablename__ = "documents"
-
     id: Mapped[str] = mapped_column(
         String(64),
         primary_key=True,
@@ -94,18 +68,12 @@ class Document(Base):
         DateTime(timezone=True),
         default=datetime.utcnow,
     )
-
     chunks: Mapped[list["DocumentChunk"]] = relationship(
         back_populates="document",
         cascade="all, delete-orphan",
     )
-
-
 class DocumentChunk(Base):
-    """文档分块表：用于 RAG 的文本块。"""
-
     __tablename__ = "document_chunks"
-
     id: Mapped[str] = mapped_column(
         String(64),
         primary_key=True,
@@ -124,15 +92,9 @@ class DocumentChunk(Base):
         DateTime(timezone=True),
         default=datetime.utcnow,
     )
-
     document: Mapped["Document"] = relationship(back_populates="chunks")
-
-
 class TraceLog(Base):
-    """追踪日志表：持久化关键 Span（可与内存 Tracer 配合）。"""
-
     __tablename__ = "trace_logs"
-
     id: Mapped[str] = mapped_column(
         String(64),
         primary_key=True,

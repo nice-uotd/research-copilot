@@ -1,6 +1,3 @@
-# -*- coding: utf-8 -*-
-"""长期记忆：向量库存储与按会话召回。"""
-
 from __future__ import annotations
 
 import asyncio
@@ -12,18 +9,14 @@ from loguru import logger
 
 from app.models.schemas import MemoryItem
 
-
 @runtime_checkable
 class LTMEmbedProtocol(Protocol):
-    """嵌入模型接口。"""
 
     def embed_query(self, text: str) -> list[float]:
         ...
 
-
 @runtime_checkable
 class LTMCollectionProtocol(Protocol):
-    """Milvus Collection 最小接口。"""
 
     def insert(self, data: Any, **kwargs: Any) -> Any:
         ...
@@ -46,9 +39,7 @@ class LTMCollectionProtocol(Protocol):
     def flush(self, **kwargs: Any) -> Any:
         ...
 
-
 class LongTermMemory:
-    """长期记忆：基于向量数据库的持久化记忆。"""
 
     vector_field: str = "embedding"
     content_field: str = "content"
@@ -59,10 +50,10 @@ class LongTermMemory:
     metric_param: dict[str, Any] = {"metric_type": "L2", "params": {"nprobe": 16}}
 
     def __init__(self, milvus_collection: Any, embedding_model: Any) -> None:
-        """
-        :param milvus_collection: Milvus Collection，需包含向量、文本、会话 ID 等字段
-        :param embedding_model: 含 ``embed_query`` 的嵌入模型
-        """
+\
+\
+\
+
         self._coll = milvus_collection
         self._embed = embedding_model
 
@@ -75,7 +66,7 @@ class LongTermMemory:
             raise TypeError("milvus_collection 需支持 insert/search/delete")
 
     async def store(self, session_id: str, content: str, metadata: dict[str, Any]) -> str:
-        """写入一条长期记忆，返回 memory_id。"""
+
         self._ensure_embed()
         self._ensure_coll()
 
@@ -92,7 +83,7 @@ class LongTermMemory:
                 self.session_field: session_id,
                 self.meta_field: json.dumps(meta, ensure_ascii=False),
             }
-            # pymilvus 2.4+ 支持实体字典列表，字段名需与 Collection Schema 一致
+
             self._coll.insert([row])
             try:
                 self._coll.flush()
@@ -108,13 +99,13 @@ class LongTermMemory:
         return memory_id
 
     async def recall(self, query: str, session_id: str, top_k: int = 5) -> list[MemoryItem]:
-        """按语义在指定会话内召回记忆。"""
+
         self._ensure_embed()
         self._ensure_coll()
 
         def _sync() -> list[MemoryItem]:
             vec = self._embed.embed_query(query)
-            # 转义单引号，避免 expr 注入
+
             sid = session_id.replace("'", "\\'")
             expr = f'{self.session_field} == "{sid}"'
             out = self._coll.search(
@@ -131,7 +122,7 @@ class LongTermMemory:
                 entity = getattr(hit, "entity", {}) or {}
                 if hasattr(hit, "entity") and not isinstance(entity, dict):
                     try:
-                        entity = hit.entity.to_dict()  # type: ignore[assignment]
+                        entity = hit.entity.to_dict()                            
                     except Exception:
                         entity = {}
                 rid = str(entity.get(self.pk_field) or getattr(hit, "id", ""))
@@ -154,7 +145,7 @@ class LongTermMemory:
             raise RuntimeError(f"recall 失败: {e}") from e
 
     async def forget(self, memory_id: str) -> None:
-        """按主键删除一条记忆。"""
+
         self._ensure_coll()
 
         def _sync() -> None:

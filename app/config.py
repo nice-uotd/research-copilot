@@ -1,10 +1,7 @@
-"""应用配置：基于 pydantic-settings，支持环境变量与 .env 文件。"""
-
 from functools import lru_cache
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
-
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -87,7 +84,6 @@ class Settings(BaseSettings):
     )
 
     log_level: str = Field(default="INFO", description="日志级别")
-
 
 @lru_cache
 def get_settings() -> Settings:

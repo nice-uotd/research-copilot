@@ -1,6 +1,3 @@
-# -*- coding: utf-8 -*-
-"""数据库模型与会话。"""
-
 from app.infrastructure.database.models import (
     Base,
     Conversation,
@@ -16,7 +13,6 @@ from app.infrastructure.database.session import (
     init_engine,
     normalize_async_database_url,
 )
-
 __all__ = [
     "Base",
     "Conversation",

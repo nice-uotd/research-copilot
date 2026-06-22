@@ -1,11 +1,3 @@
-# -*- coding: utf-8 -*-
-"""学术论文搜索的 Mock 数据回退。
-
-当 arXiv/Semantic Scholar API 不可达时，使用预置的真实论文数据。
-这些数据来自真实 API 调用结果，用于保证 Demo 可用性。
-"""
-
-# === RAG / Retrieval-Augmented Generation ===
 RAG_ARXIV_PAPERS = [
     {
         "title": "Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks",
@@ -53,9 +45,6 @@ RAG_ARXIV_PAPERS = [
         "categories": ["cs.CL", "cs.IR"],
     },
 ]
-
-# MORE_PLACEHOLDER_1
-
 RAG_SCHOLAR_PAPERS = [
     {
         "title": "Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks",
@@ -108,8 +97,6 @@ RAG_SCHOLAR_PAPERS = [
         "paper_id": "b4a5c97e",
     },
 ]
-
-# === Multi-Agent Systems ===
 MULTI_AGENT_ARXIV_PAPERS = [
     {
         "title": "AutoGen: Enabling Next-Gen LLM Applications via Multi-Agent Conversation",
@@ -139,8 +126,6 @@ MULTI_AGENT_ARXIV_PAPERS = [
         "categories": ["cs.SE", "cs.AI"],
     },
 ]
-
-# === LLM + Knowledge Graph ===
 LLM_KG_ARXIV_PAPERS = [
     {
         "title": "Unifying Large Language Models and Knowledge Graphs: A Roadmap",
@@ -170,8 +155,6 @@ LLM_KG_ARXIV_PAPERS = [
         "categories": ["cs.CL"],
     },
 ]
-
-# === 通用 fallback（当主题不匹配时使用） ===
 GENERAL_ARXIV_PAPERS = [
     {
         "title": "A Survey on Large Language Model based Autonomous Agents",
@@ -201,12 +184,8 @@ GENERAL_ARXIV_PAPERS = [
         "categories": ["cs.CL", "cs.AI"],
     },
 ]
-
-
 def get_mock_papers(query: str, source: str = "arxiv") -> list[dict] | None:
-    """根据 query 关键词匹配预置数据。返回 None 表示没有匹配的 mock 数据。"""
     q = query.lower()
-
     if any(kw in q for kw in ["retrieval augmented", "rag", "retrieval-augmented"]):
         return RAG_ARXIV_PAPERS if source == "arxiv" else RAG_SCHOLAR_PAPERS
     elif any(kw in q for kw in ["multi-agent", "multi agent", "autogen", "collaboration"]):
@@ -214,5 +193,4 @@ def get_mock_papers(query: str, source: str = "arxiv") -> list[dict] | None:
     elif any(kw in q for kw in ["knowledge graph", "knowledge base", "llm kg", "llm and kg"]):
         return LLM_KG_ARXIV_PAPERS if source == "arxiv" else None
     else:
-        # 通用回退
         return GENERAL_ARXIV_PAPERS if source == "arxiv" else RAG_SCHOLAR_PAPERS

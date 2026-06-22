@@ -1,6 +1,3 @@
-# -*- coding: utf-8 -*-
-"""内置计算器工具：安全求值算术表达式。"""
-
 from __future__ import annotations
 
 import ast
@@ -10,7 +7,6 @@ from typing import Any
 from loguru import logger
 
 from app.core.tools.base import BaseTool, ToolParameter
-
 
 _ALLOWED_OPS = {
     ast.Add: op.add,
@@ -23,9 +19,7 @@ _ALLOWED_OPS = {
     ast.Mod: op.mod,
 }
 
-
 class CalculatorTool(BaseTool):
-    """对有限语法树节点求值，禁止任意函数调用。"""
 
     def __init__(self) -> None:
         super().__init__()
@@ -54,7 +48,7 @@ class CalculatorTool(BaseTool):
         raise ValueError("不支持的表达式语法")
 
     async def execute(self, **kwargs: Any) -> str:
-        """解析并计算表达式字符串。"""
+
         expr = str(kwargs.get("expression", "")).strip()
         if not expr:
             raise ValueError("参数 expression 不能为空")

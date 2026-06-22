@@ -1,15 +1,4 @@
-# -*- coding: utf-8 -*-
-"""arXiv 学术论文搜索工具：基于 arXiv REST API（Atom feed）。
-
-设计：
-  - 使用 arXiv 官方 API（http://export.arxiv.org/api/query）
-  - 无需 API Key，免费无限制（建议间隔 3s，本工具由 Agent 调用频率低不成问题）
-  - 解析 Atom XML feed，提取论文元数据
-  - 返回结构化 JSON 供 Agent 直接使用
-"""
-
 from __future__ import annotations
-
 import asyncio
 import asyncio
 import json
@@ -18,25 +7,16 @@ import xml.etree.ElementTree as ET
 from dataclasses import asdict, dataclass
 from typing import Any
 from urllib.parse import quote
-
 import httpx
 from loguru import logger
-
 from app.core.tools.base import BaseTool, ToolParameter
-
-# arXiv Atom feed 命名空间
 _NS = {
     "atom": "http://www.w3.org/2005/Atom",
     "arxiv": "http://arxiv.org/schemas/atom",
 }
-
 ARXIV_API_URL = "https://export.arxiv.org/api/query"
-
-
 @dataclass
 class ArxivPaper:
-    """单篇 arXiv 论文的结构化信息。"""
-
     title: str
     authors: list[str]
     year: int
@@ -44,18 +24,9 @@ class ArxivPaper:
     arxiv_id: str
     url: str
     categories: list[str]
-
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
-
-
 class ArxivSearchTool(BaseTool):
-    """arXiv 学术论文搜索工具。
-
-    适用场景：用户需要查找某个研究主题的相关论文、了解某领域最新进展、
-    或为 Related Work 收集参考文献。
-    """
-
     def __init__(self, timeout: float = 30.0) -> None:
         super().__init__()
         self.name = "arxiv_search"
@@ -84,11 +55,9 @@ class ArxivSearchTool(BaseTool):
             ),
         ]
         self._timeout = timeout
-
     async def _fetch_arxiv(
         self, query: str, max_results: int, sort_by: str
     ) -> list[ArxivPaper]:
-        """调用 arXiv API 并解析 Atom feed。"""
         params = {
             "search_query": f"all:{query}",
             "start": 0,
@@ -96,56 +65,41 @@ class ArxivSearchTool(BaseTool):
             "sortBy": sort_by,
             "sortOrder": "descending",
         }
-
         async with httpx.AsyncClient(timeout=self._timeout, follow_redirects=True) as client:
             resp = await client.get(ARXIV_API_URL, params=params)
             resp.raise_for_status()
-
         root = ET.fromstring(resp.text)
         papers: list[ArxivPaper] = []
-
         for entry in root.findall("atom:entry", _NS):
-            # 标题（去换行）
             title_el = entry.find("atom:title", _NS)
             title = re.sub(r"\s+", " ", (title_el.text or "").strip()) if title_el is not None else ""
-
-            # 作者列表
             authors = []
             for author_el in entry.findall("atom:author", _NS):
                 name_el = author_el.find("atom:name", _NS)
                 if name_el is not None and name_el.text:
                     authors.append(name_el.text.strip())
-
-            # 发布年份
             published_el = entry.find("atom:published", _NS)
             year = 2024
             if published_el is not None and published_el.text:
                 match = re.match(r"(\d{4})", published_el.text)
                 if match:
                     year = int(match.group(1))
-
-            # 摘要（截断到 400 字符）
             summary_el = entry.find("atom:summary", _NS)
             abstract = ""
             if summary_el is not None and summary_el.text:
                 abstract = re.sub(r"\s+", " ", summary_el.text.strip())[:400]
-
-            # arXiv ID 和 URL
             id_el = entry.find("atom:id", _NS)
             url = (id_el.text or "").strip() if id_el is not None else ""
             arxiv_id = url.split("/abs/")[-1] if "/abs/" in url else url
-
-            # 分类
             categories = []
             for cat_el in entry.findall("atom:category", _NS):
                 term = cat_el.get("term", "")
                 if term:
                     categories.append(term)
-
             papers.append(
                 ArxivPaper(
                     title=title,
-                    authors=authors[:5],  # 最多保留 5 个作者
+                    authors=authors[:5],              
                     year=year,
                     abstract=abstract,
                     arxiv_id=arxiv_id,
@@ -153,29 +107,24 @@ class ArxivSearchTool(BaseTool):
                     categories=categories[:3],
                 )
             )
-
         return papers
-
     async def search(
         self, query: str, max_results: int = 10, sort_by: str = "relevance"
     ) -> list[ArxivPaper]:
-        """执行搜索，返回结构化论文列表（含指数退避重试）。"""
         if not query.strip():
             raise ValueError("query 不能为空")
         max_results = max(1, min(max_results, 20))
         if sort_by not in ("relevance", "lastUpdatedDate"):
             sort_by = "relevance"
-
         max_attempts = 3
         last_exc: Exception | None = None
-
         for attempt in range(max_attempts):
             try:
                 return await self._fetch_arxiv(query, max_results, sort_by)
             except httpx.HTTPStatusError as exc:
                 last_exc = exc
                 if exc.response.status_code == 429 and attempt < max_attempts - 1:
-                    wait = 5 * (attempt + 1)  # 5s, 10s
+                    wait = 5 * (attempt + 1)           
                     logger.info("arXiv 429 限流，等待 {}s 后重试 ({}/{})", wait, attempt + 1, max_attempts)
                     await asyncio.sleep(wait)
                     continue
@@ -187,23 +136,17 @@ class ArxivSearchTool(BaseTool):
             except Exception as exc:
                 logger.exception("arXiv 搜索异常: {}", exc)
                 raise RuntimeError(f"arXiv 搜索失败: {exc!s}") from exc
-
         raise RuntimeError(f"arXiv API 请求失败（重试 {max_attempts} 次后）: {last_exc!s}")
-
     async def execute(self, **kwargs: Any) -> Any:
-        """Agent 工具接口：返回 JSON 字符串。API 失败时回退到预置真实论文数据。"""
         query = str(kwargs.get("query", "")).strip()
         if not query:
             return json.dumps({"error": "参数 query 不能为空"}, ensure_ascii=False)
-
         raw_n = kwargs.get("max_results", 10)
         try:
             max_results = max(1, min(int(raw_n), 20))
         except (TypeError, ValueError):
             max_results = 10
-
         sort_by = str(kwargs.get("sort_by", "relevance"))
-
         try:
             papers = await self.search(query, max_results, sort_by)
             return json.dumps(
@@ -211,7 +154,6 @@ class ArxivSearchTool(BaseTool):
                 ensure_ascii=False,
             )
         except Exception as exc:
-            # API 不可达时回退到预置数据
             logger.warning("arXiv API 失败，使用预置论文数据: {}", exc)
             from app.core.tools.builtin.mock_papers import get_mock_papers
             mock = get_mock_papers(query, source="arxiv")

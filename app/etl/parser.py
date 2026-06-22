@@ -1,6 +1,3 @@
-# -*- coding: utf-8 -*-
-"""文档解析器：按 MIME 类型选择解析策略。"""
-
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -9,24 +6,20 @@ from typing import BinaryIO
 
 from loguru import logger
 
-
 @dataclass
 class ParsedDocument:
-    """解析后的纯文本与元数据。"""
 
     text: str
     mime_type: str
     meta: dict[str, str]
 
-
 class DocumentParser:
-    """文档解析器：支持纯文本与 PDF（pypdf）。"""
 
     def __init__(self, max_chars: int = 500_000) -> None:
         self._max_chars = max_chars
 
     def parse_file(self, path: Path, mime_type: str | None = None) -> ParsedDocument:
-        """从文件路径解析。"""
+
         mime = mime_type or "application/octet-stream"
         suffix = path.suffix.lower()
         if suffix in {".txt", ".tex", ".md", ".markdown"} or mime.startswith("text/"):
@@ -40,7 +33,7 @@ class DocumentParser:
         return ParsedDocument(text="", mime_type=mime, meta={"warning": "unsupported"})
 
     def parse_bytes(self, data: bytes, filename: str, mime_type: str | None) -> ParsedDocument:
-        """从内存字节解析。"""
+
         mime = mime_type or "application/octet-stream"
         lower = filename.lower()
         if (
@@ -56,7 +49,7 @@ class DocumentParser:
         return ParsedDocument(text="", mime_type=mime, meta={"warning": "unsupported"})
 
     def _parse_pdf(self, data: bytes, mime: str) -> ParsedDocument:
-        """使用 pypdf 抽取文本。"""
+
         try:
             from pypdf import PdfReader
         except ImportError as exc:

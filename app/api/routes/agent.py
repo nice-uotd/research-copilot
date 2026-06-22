@@ -1,17 +1,11 @@
-# -*- coding: utf-8 -*-
-"""Agent API：function calling 驱动的多工具研究助手。"""
-
 from __future__ import annotations
-
 import json
 import uuid
 from typing import Any
-
 from fastapi import APIRouter, HTTPException
 from loguru import logger
 from openai import AsyncOpenAI
 from pydantic import BaseModel, Field
-
 from app.config import get_settings
 from app.core.agent.function_calling_agent import FunctionCallingAgent
 from app.core.rag.service import get_rag_service
@@ -21,17 +15,11 @@ from app.core.tools.builtin.calculator import CalculatorTool
 from app.core.tools.builtin.scholar_search import ScholarSearchTool
 from app.core.tools.builtin.search import WebSearchTool
 from app.infrastructure.trace.tracer import Tracer
-
 router = APIRouter(tags=["agent"])
-
 _tracer = Tracer()
 _agent: FunctionCallingAgent | None = None
 _related_work_agent: FunctionCallingAgent | None = None
-
-
 class RagSearchTool(BaseTool):
-    """把 RAG 服务包成 Agent 工具。"""
-
     def __init__(self, rag_service: Any) -> None:
         super().__init__()
         self.name = "rag_search"
@@ -56,7 +44,6 @@ class RagSearchTool(BaseTool):
             ),
         ]
         self._rag = rag_service
-
     async def execute(self, **kwargs: Any) -> str:
         q = str(kwargs.get("query", "")).strip()
         if not q:
@@ -80,10 +67,7 @@ class RagSearchTool(BaseTool):
             ],
             ensure_ascii=False,
         )
-
-
 def _get_agent() -> FunctionCallingAgent:
-    """懒加载通用 Agent 单例（含全部 5 个工具）。"""
     global _agent
     if _agent is None:
         s = get_settings()
@@ -117,14 +101,9 @@ def _get_agent() -> FunctionCallingAgent:
             [t.name for t in tools],
         )
     return _agent
-
-
-# Related Work 专用 system prompt
 _RELATED_WORK_SYSTEM = """\
 你是一个学术写作助手，专门帮助研究者生成 Related Work 段落。
-
 当用户给你一个研究主题时，请严格按以下步骤执行：
-
 1. 调用 arxiv_search 搜索相关论文（建议 max_results=15）
 2. 调用 scholar_search 搜索相关论文（建议 max_results=10），获取引用量数据
 3. 从两个来源的结果中，筛选 8-12 篇最相关的高质量论文：
@@ -137,22 +116,16 @@ _RELATED_WORK_SYSTEM = """\
    - 指出各工作的贡献与局限
    - 末尾点明本工作与已有工作的区别
 5. 在段落之后附上完整参考文献列表（按引用顺序编号）
-
 重要：如果某个工具调用失败（如 API 限流），请用另一个工具的结果继续工作。
 如果两个工具都失败了，请明确告知用户"当前 API 限流，请稍后重试"，不要编造论文。
-
 输出格式：
 ## Related Work
 [生成的段落]
-
 ## References
 [1] Author1 et al. "Title." Venue, Year.
 [2] ...
 """
-
-
 def _get_related_work_agent() -> FunctionCallingAgent:
-    """懒加载 Related Work 专用 Agent（定制 system prompt + 更多迭代次数）。"""
     global _related_work_agent
     if _related_work_agent is None:
         s = get_settings()
@@ -167,26 +140,20 @@ def _get_related_work_agent() -> FunctionCallingAgent:
             llm_client=client,
             model=s.openai_model,
             tools=tools,
-            max_iters=6,  # 搜 arXiv + 搜 Scholar + 可能补充搜索 + 生成
+            max_iters=6,                                     
             system_prompt=_RELATED_WORK_SYSTEM,
         )
         logger.info("RelatedWorkAgent 已初始化")
     return _related_work_agent
-
-
 class ChatAgentRequest(BaseModel):
     query: str = Field(min_length=1, description="用户问题")
     max_iters: int = Field(default=5, ge=1, le=10)
-
-
 class StepDTO(BaseModel):
     step: int
     tool_name: str
     tool_args: dict[str, Any]
     tool_result: str
     error: str | None = None
-
-
 class ChatAgentResponse(BaseModel):
     answer: str
     steps: list[StepDTO]
@@ -194,11 +161,8 @@ class ChatAgentResponse(BaseModel):
     finished: bool
     total_tokens: int
     trace_id: str
-
-
 @router.post("/chat-agent", response_model=ChatAgentResponse)
 async def chat_agent(req: ChatAgentRequest) -> ChatAgentResponse:
-    """Agent 入口：LLM 自主选择 rag_search / web_search / calculator / arxiv_search / scholar_search。"""
     trace_id = str(uuid.uuid4())
     span = _tracer.start_trace(trace_id, "chat_agent")
     agent = _get_agent()
@@ -210,7 +174,6 @@ async def chat_agent(req: ChatAgentRequest) -> ChatAgentResponse:
         logger.exception("/chat-agent 失败: {}", exc)
         _tracer.end_span(span, error=str(exc))
         raise HTTPException(status_code=500, detail=f"Agent 失败: {exc!s}") from exc
-
     _tracer.end_span(
         span,
         result={
@@ -221,7 +184,6 @@ async def chat_agent(req: ChatAgentRequest) -> ChatAgentResponse:
             "tools_used": [s.tool_name for s in result.steps],
         },
     )
-
     return ChatAgentResponse(
         answer=result.answer,
         steps=[
@@ -239,16 +201,9 @@ async def chat_agent(req: ChatAgentRequest) -> ChatAgentResponse:
         total_tokens=result.total_tokens,
         trace_id=trace_id,
     )
-
-
-# ==================== Related Work Generator ====================
-
-
 class RelatedWorkRequest(BaseModel):
     topic: str = Field(min_length=1, description="研究主题或问题（英文效果更好）")
     max_papers: int = Field(default=12, ge=5, le=20, description="参考论文数量上限")
-
-
 class RelatedWorkResponse(BaseModel):
     related_work: str
     steps: list[StepDTO]
@@ -257,22 +212,16 @@ class RelatedWorkResponse(BaseModel):
     total_tokens: int
     trace_id: str
     papers_found: int
-
-
 @router.post("/chat-related-work", response_model=RelatedWorkResponse)
 async def chat_related_work(req: RelatedWorkRequest) -> RelatedWorkResponse:
-    """Related Work 生成：Agent 自动检索 arXiv + Semantic Scholar 并生成综述段落。"""
     trace_id = str(uuid.uuid4())
     span = _tracer.start_trace(trace_id, "related_work")
     agent = _get_related_work_agent()
-
-    # 构造带论文数量要求的 query
     query = (
         f"请为以下研究主题生成 Related Work 段落：\n\n"
         f"主题：{req.topic}\n\n"
         f"要求：筛选最相关的 {req.max_papers} 篇论文，生成英文 Related Work。"
     )
-
     try:
         result = await agent.run(query, max_iters=6)
     except HTTPException:
@@ -283,8 +232,6 @@ async def chat_related_work(req: RelatedWorkRequest) -> RelatedWorkResponse:
         raise HTTPException(
             status_code=500, detail=f"Related Work 生成失败: {exc!s}"
         ) from exc
-
-    # 统计检索到的论文数量
     papers_found = 0
     for s in result.steps:
         if s.tool_name in ("arxiv_search", "scholar_search"):
@@ -294,7 +241,6 @@ async def chat_related_work(req: RelatedWorkRequest) -> RelatedWorkResponse:
                     papers_found += len(data)
             except (json.JSONDecodeError, TypeError):
                 pass
-
     _tracer.end_span(
         span,
         result={
@@ -305,7 +251,6 @@ async def chat_related_work(req: RelatedWorkRequest) -> RelatedWorkResponse:
             "tools_used": [s.tool_name for s in result.steps],
         },
     )
-
     return RelatedWorkResponse(
         related_work=result.answer,
         steps=[

@@ -1,6 +1,3 @@
-# -*- coding: utf-8 -*-
-"""文档分块：固定长度 / 递归 / 按段落等策略。"""
-
 from __future__ import annotations
 
 from enum import Enum
@@ -9,17 +6,13 @@ from typing import List
 import tiktoken
 from loguru import logger
 
-
 class ChunkStrategy(str, Enum):
-    """分块策略枚举。"""
 
     FIXED = "fixed"
     RECURSIVE = "recursive"
     PARAGRAPH = "paragraph"
 
-
 class DocumentChunker:
-    """文档分块器：支持多种策略。"""
 
     def __init__(
         self,
@@ -41,7 +34,7 @@ class DocumentChunker:
         return len(self._encoding.encode(text))
 
     def chunk(self, text: str, strategy: ChunkStrategy = ChunkStrategy.RECURSIVE) -> List[str]:
-        """按策略将全文切分为块列表。"""
+
         text = text.strip()
         if not text:
             return []
@@ -53,7 +46,7 @@ class DocumentChunker:
         return self._chunk_recursive(text, _depth=0)
 
     def _chunk_fixed(self, text: str) -> List[str]:
-        """按固定字符窗口切片（近似 token 长度）。"""
+
         out: list[str] = []
         start = 0
         n = len(text)
@@ -68,7 +61,7 @@ class DocumentChunker:
         return out
 
     def _chunk_paragraph(self, text: str) -> List[str]:
-        """按空行分段，再合并到目标长度。"""
+
         paras = [p.strip() for p in text.split("\n\n") if p.strip()]
         merged: list[str] = []
         buf = ""
@@ -91,7 +84,7 @@ class DocumentChunker:
         *,
         _depth: int = 0,
     ) -> List[str]:
-        """递归按分隔符切分，过长片段继续细分或退回固定窗口。"""
+
         if _depth > 24:
             return self._chunk_fixed(text)
         seps = separators or ["\n\n", "\n", "。", ". ", " "]
